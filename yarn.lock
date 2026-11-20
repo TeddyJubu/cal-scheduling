@@ -1906,21 +1906,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@calcom/agent-tools@workspace:packages/agent-tools":
-  version: 0.0.0-use.local
-  resolution: "@calcom/agent-tools@workspace:packages/agent-tools"
-  dependencies:
-    "@biomejs/biome": "npm:2.3.10"
-    "@modelcontextprotocol/sdk": "npm:1.26.0"
-    "@types/node": "npm:^20.17.23"
-    typescript: "npm:5.9.3"
-    vitest: "npm:4.1.8"
-    zod: "npm:3.25.76"
-  bin:
-    cal-mcp: dist/bin.js
-  languageName: unknown
-  linkType: soft
-
 "@calcom/alby@workspace:packages/app-store/alby":
   version: 0.0.0-use.local
   resolution: "@calcom/alby@workspace:packages/app-store/alby"
@@ -15111,6 +15096,21 @@ __metadata:
   checksum: 10/17f6e3c3f56d2d91d5818981416a628db2e1038f6a13f39f60e5b2bdcff04b99fba0e79640a6667ea9ef70756a2a086fb468f8b5f065faea9f1a47f8aa3722a5
   languageName: node
   linkType: hard
+
+"@teddyjubu/cal-agent-tools@workspace:packages/agent-tools":
+  version: 0.0.0-use.local
+  resolution: "@teddyjubu/cal-agent-tools@workspace:packages/agent-tools"
+  dependencies:
+    "@biomejs/biome": "npm:2.3.10"
+    "@modelcontextprotocol/sdk": "npm:1.26.0"
+    "@types/node": "npm:^20.17.23"
+    typescript: "npm:5.9.3"
+    vitest: "npm:4.1.8"
+    zod: "npm:3.25.76"
+  bin:
+    cal-mcp: dist/bin.js
+  languageName: unknown
+  linkType: soft
 
 "@tediousjs/connection-string@npm:^0.5.0":
   version: 0.5.0

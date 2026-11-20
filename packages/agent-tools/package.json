@@ -1,9 +1,20 @@
 {
-  "name": "@calcom/agent-tools",
+  "name": "@teddyjubu/cal-agent-tools",
   "version": "0.1.0",
   "description": "Standalone Cal.diy HTTP scheduling tools and MCP stdio server",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TeddyJubu/cal-scheduling",
+    "directory": "packages/agent-tools"
+  },
+  "keywords": [
+    "mcp",
+    "cal",
+    "scheduling",
+    "ai-agent"
+  ],
   "files": [
     "dist",
     "README.md"
@@ -24,7 +35,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node --input-type=module -e \"import { chmodSync } from 'node:fs'; chmodSync('dist/bin.js', 0o755);\"",
     "prepack": "yarn build",
     "type-check": "tsc --noEmit",
     "type-check:ci": "tsc --noEmit",

@@ -1,4 +1,4 @@
-# @calcom/agent-tools
+# @teddyjubu/cal-agent-tools
 
 Standalone scheduling tools for Cal.diy / Cal.com API v2. No Cal.com workspace
 dependencies, database access, or framework required. Requires Node.js 22+.
@@ -8,12 +8,12 @@ pagination fields). API errors include the HTTP status and response message.
 ## Install
 
 ```sh
-npm install @calcom/agent-tools
+npm install @teddyjubu/cal-agent-tools
 # Or run the MCP server without installing globally:
-CAL_API_KEY=cal_live_... npx -y @calcom/agent-tools
+CAL_API_KEY=cal_live_... npx -y @teddyjubu/cal-agent-tools
 ```
 
-For a source checkout: `yarn workspace @calcom/agent-tools build`, then
+For a source checkout: `yarn workspace @teddyjubu/cal-agent-tools build`, then
 `node packages/agent-tools/dist/bin.js`.
 
 ## MCP configuration
@@ -25,7 +25,7 @@ Claude Desktop (`claude_desktop_config.json`) and Cursor (`.cursor/mcp.json`):
   "mcpServers": {
     "cal": {
       "command": "npx",
-      "args": ["-y", "@calcom/agent-tools"],
+      "args": ["-y", "@teddyjubu/cal-agent-tools"],
       "env": {
         "CAL_API_KEY": "YOUR_API_KEY",
         "CAL_API_URL": "https://your-cal-api.example.com",
@@ -63,7 +63,7 @@ Install your chosen provider SDK separately. Definitions are plain JSON Schema;
 tool handlers accept unknown input and validate with Zod before any HTTP call.
 
 ```ts
-import { CalClient, getTools, toFunctionDefinitions } from "@calcom/agent-tools";
+import { CalClient, getTools, toFunctionDefinitions } from "@teddyjubu/cal-agent-tools";
 
 const client = new CalClient({
   apiKey: process.env.CAL_API_KEY!,
@@ -91,7 +91,7 @@ With the separately installed `ai` SDK (v5+):
 
 ```ts
 import { jsonSchema, tool } from "ai";
-import { CalClient, getTools, toFunctionDefinitions } from "@calcom/agent-tools";
+import { CalClient, getTools, toFunctionDefinitions } from "@teddyjubu/cal-agent-tools";
 
 const client = new CalClient({ apiKey: process.env.CAL_API_KEY! });
 const definitions = toFunctionDefinitions({ readOnly: true });
@@ -133,4 +133,4 @@ the API may reject such bookings with an explanatory error.
 
 Endpoint versions: bookings `2024-08-13`, slots `2024-09-04`, event-types
 `2024-06-14`, schedules `2024-06-11`. Self-hosted instances must expose these
-API v2 versions. Tests: `yarn workspace @calcom/agent-tools test`.
+API v2 versions. Tests: `yarn workspace @teddyjubu/cal-agent-tools test`.
