@@ -7,7 +7,7 @@ import {
 } from "@calcom/platform-constants";
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiCreatedResponse, ApiHeader, ApiOkResponse, ApiTags } from "@nestjs/swagger";
-import { CommunityEventsService } from "./community-events.service";
+import { CommunityEventsService } from "./CommunityEventsService";
 import {
   CommunityEventRsvpInput,
   CreateCommunityEventInput,

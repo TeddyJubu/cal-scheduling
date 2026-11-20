@@ -17,7 +17,9 @@ export class CommunityEventsService {
       if (error instanceof ErrorWithCode) {
         throw new HttpException(
           error.message,
-          error.code === ErrorCode.CommunityEventFull ? 409 : getHttpStatusCode(error)
+          error.code === ErrorCode.CommunityEventFull || error.code === ErrorCode.CommunityEventRsvpExists
+            ? 409
+            : getHttpStatusCode(error)
         );
       }
       throw error;
@@ -45,7 +47,7 @@ export class CommunityEventsService {
   rsvp(userId: number, uid: string, input: CommunityEventRsvpInput) {
     return this.execute(async (domain) => {
       await domain.getOwnerEvent(userId, uid);
-      return domain.rsvp(uid, input);
+      return domain.rsvp(uid, input, { trusted: true });
     });
   }
 }
