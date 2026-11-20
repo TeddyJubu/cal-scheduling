@@ -29,6 +29,7 @@ function eventDto(event: EventRecord) {
     location: event.location,
     capacity: event.capacity,
     status: event.status,
+    hidden: event.hidden,
     host: { name: event.user.name, username: event.user.username },
   };
 }
@@ -75,11 +76,20 @@ export class CommunityEventService {
     return this.save(() => this.repository.create({ ...data, userId, slug }));
   }
   async updateEvent(userId: number, uid: string, input: Partial<EventInput>) {
-    const data = parse(eventInput.partial(), input);
+    const data = parse(
+      eventInput.partial(),
+      Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined))
+    );
     return this.repository.withEventLock(uid, async (repository) => {
       const event = await this.event(uid, repository);
       this.owner(event, userId);
       validateTimes({ ...event, ...data });
+      if (data.capacity !== undefined && data.capacity !== null) {
+        const groups = await repository.aggregateCounts(event.id);
+        const going = groups.find((group) => group.status === "GOING");
+        if (data.capacity < (going?._count._all ?? 0) + (going?._sum.plusOnes ?? 0))
+          throw new ErrorWithCode(ErrorCode.BadRequest, "Capacity cannot be lower than current attendance");
+      }
       if (data.slug !== undefined) {
         data.slug = slugify(data.slug);
         if (!data.slug) throw new ErrorWithCode(ErrorCode.BadRequest, "A non-empty event slug is required");
@@ -115,12 +125,24 @@ export class CommunityEventService {
     return this.publicDto(await this.event(uid));
   }
 
-  async rsvp(eventUid: string, input: z.input<typeof rsvpInput>) {
+  async rsvp(
+    eventUid: string,
+    input: z.input<typeof rsvpInput>,
+    options: { rsvpUid?: string; trusted?: boolean } = {}
+  ) {
     const data = parse(rsvpInput, input);
     return this.repository.withEventLock(eventUid, async (repository) => {
       const event = await this.event(eventUid, repository);
       if (event.status === "CANCELLED" || event.endTime <= new Date())
         throw new ErrorWithCode(ErrorCode.BadRequest, "This event is cancelled or has ended");
+      if (!options.trusted) {
+        const existing = await repository.findRsvp(event.id, data.email);
+        if (existing && existing.uid !== options.rsvpUid)
+          throw new ErrorWithCode(
+            ErrorCode.CommunityEventRsvpExists,
+            "An RSVP already exists for this email"
+          );
+      }
       if (data.status === "GOING" && event.capacity !== null) {
         const groups = await repository.aggregateCounts(event.id, data.email);
         const going = groups.find((group) => group.status === "GOING");
@@ -128,7 +150,9 @@ export class CommunityEventService {
         if (count + 1 + data.plusOnes > event.capacity)
           throw new ErrorWithCode(ErrorCode.CommunityEventFull, "This event is full");
       }
-      return rsvpDto(await repository.upsertRsvp(event.id, data));
+      const saved = await repository.upsertRsvp(event.id, data);
+      if (!options.trusted) return { uid: saved.uid, status: saved.status, plusOnes: saved.plusOnes };
+      return rsvpDto(saved);
     });
   }
   async listRsvps(userId: number, uid: string) {
