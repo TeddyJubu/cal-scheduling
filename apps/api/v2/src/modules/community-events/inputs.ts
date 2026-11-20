@@ -56,7 +56,11 @@ export class CommunityEventRsvpInput {
     | "GOING"
     | "MAYBE"
     | "NOT_GOING";
-  @ApiPropertyOptional({ default: 0, minimum: 0, maximum: 10 })
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: 10,
+    description: "Omit to preserve existing guests; new RSVPs default to zero.",
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
