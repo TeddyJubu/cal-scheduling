@@ -5,7 +5,12 @@ export const eventInput = z.object({
   slug: z.string().trim().min(1).optional(),
   description: z.string().nullable().optional(),
   category: z.string().nullable().optional(),
-  coverImageUrl: z.string().url().nullable().optional(),
+  coverImageUrl: z
+    .string()
+    .url()
+    .refine((value) => /^https?:\/\//i.test(value), "Cover images must use HTTP or HTTPS")
+    .nullable()
+    .optional(),
   startTime: z.date(),
   endTime: z.date(),
   timeZone: z.string().refine((value) => {
