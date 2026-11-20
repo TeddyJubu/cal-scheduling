@@ -161,22 +161,23 @@ export class CommunityEventService {
       const event = await this.event(eventUid, repository);
       if (event.status === "CANCELLED" || event.endTime <= new Date())
         throw new ErrorWithCode(ErrorCode.BadRequest, "This event is cancelled or has ended");
+      const existing = await repository.findRsvp(event.id, data.email);
       if (!options.trusted) {
-        const existing = await repository.findRsvp(event.id, data.email);
         if (existing && existing.uid !== options.rsvpUid)
           throw new ErrorWithCode(
             ErrorCode.CommunityEventRsvpExists,
             "An RSVP already exists for this email"
           );
       }
+      const plusOnes = data.plusOnes ?? existing?.plusOnes ?? 0;
       if (data.status === "GOING" && event.capacity !== null) {
         const groups = await repository.aggregateCounts(event.id, data.email);
         const going = groups.find((group) => group.status === "GOING");
         const count = (going?._count._all ?? 0) + (going?._sum.plusOnes ?? 0);
-        if (count + 1 + data.plusOnes > event.capacity)
+        if (count + 1 + plusOnes > event.capacity)
           throw new ErrorWithCode(ErrorCode.CommunityEventFull, "This event is full");
       }
-      const saved = await repository.upsertRsvp(event.id, data);
+      const saved = await repository.upsertRsvp(event.id, { ...data, plusOnes });
       if (!options.trusted) return { uid: saved.uid, status: saved.status, plusOnes: saved.plusOnes };
       return rsvpDto(saved);
     });
