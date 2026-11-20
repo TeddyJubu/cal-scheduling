@@ -50,7 +50,7 @@ Generic stdio MCP clients may instead launch a local build:
 | --- | --- |
 | `CAL_API_KEY` | Required Bearer API key. Create in Settings → Developer → API Keys. |
 | `CAL_API_URL` | Optional API origin/prefix; defaults to `https://api.cal.com`. Do **not** append `/v2`; it is added automatically. |
-| `CAL_MCP_READ_ONLY` | Exactly `true` omits create, reschedule and cancel tools. Default: mutations enabled. |
+| `CAL_MCP_READ_ONLY` | Exactly `true` omits all six mutating tools, exposing only the six read tools. Default: mutations enabled. |
 
 Only use trusted API URLs (the key is sent to that URL). Use HTTPS outside local
 development. Keep keys out of source control and prompts. The server uses stdio;
@@ -122,13 +122,32 @@ transports; the CLI wires it to stdio.
 | `reschedule_booking` | Move bookingUid to start, optional reschedulingReason. |
 | `cancel_booking` | Cancel bookingUid with optional reason. |
 | `list_schedules` | Retrieve working-hour schedules. |
+| `add_booking_guests` | Add 1–10 guests (email, optional name/timeZone) to an existing bookingUid. |
+| `create_event_type` | Create title, slug, lengthInMinutes, optional description and seats configuration. |
+| `update_event_type` | Update those fields by eventTypeId; disable seats with `seats: { disabled: true }`. |
+
+## Group bookings
+
+For workshops, classes and group sessions, use `create_event_type` with, for example,
+`seats: { seatsPerTimeSlot: 10, showAttendeeInfo: false, showAvailabilityCount: true }`.
+All three seat configuration fields are required; capacity must be 1–1000.
+Use `get_available_slots` to check `seatsBooked`, `seatsRemaining` and `seatsTotal`.
+Each attendee reserves their own seat with `create_booking` using the same eventTypeId
+and start time. Adding guests does not replace individual seat reservations.
+
+For extra guests on an existing booking, use `add_booking_guests` with its bookingUid
+and `guests: [{ email: "guest@example.com", name: "Guest", timeZone: "UTC" }]`.
+The API permits up to 10 guests per request and 30 total, and sends notifications.
+Use `update_event_type` to change seat settings or pass `seats: { disabled: true }`
+to turn seats off. These three tools are mutating and omitted in read-only mode.
+Confirm changes with the user first.
 
 All start/end inputs are ISO-8601 UTC timestamps ending in `Z`; timeZone values
 are IANA names. Check slots before creating/rescheduling. Notes map to API v2
 `bookingFieldsResponses.notes`; cancellation reason maps to `cancellationReason`.
 Metadata accepts up to 50 string entries (keys ≤40, values ≤500 characters).
 These minimal tools do not cover special event requirements such as custom
-required booking fields, SMS verification, seats, or recurring-booking controls;
+required booking fields, SMS verification, seat-specific cancellation, or recurring-booking controls;
 the API may reject such bookings with an explanatory error.
 
 Endpoint versions: bookings `2024-08-13`, slots `2024-09-04`, event-types

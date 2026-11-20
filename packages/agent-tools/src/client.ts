@@ -16,7 +16,12 @@ export class CalClient {
 
   async request(
     resource: keyof typeof apiVersions,
-    options: { path?: string; query?: Record<string, unknown>; body?: unknown } = {}
+    options: {
+      path?: string;
+      query?: Record<string, unknown>;
+      body?: unknown;
+      method?: "GET" | "POST" | "PATCH";
+    } = {}
   ): Promise<unknown> {
     const base = (this.config.baseUrl ?? "https://api.cal.com").replace(/\/+$/, "");
     const url = new URL(`${base}/v2/${resource}${options.path ?? ""}`);
@@ -24,7 +29,7 @@ export class CalClient {
       if (value !== undefined) url.searchParams.set(key, String(value));
     }
     const response = await fetch(url, {
-      method: options.body === undefined ? "GET" : "POST",
+      method: options.method ?? (options.body === undefined ? "GET" : "POST"),
       headers: {
         Authorization: `Bearer ${this.config.apiKey}`,
         "cal-api-version": apiVersions[resource],

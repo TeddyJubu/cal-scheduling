@@ -31,6 +31,21 @@ const text = z.string().min(1);
 const utc = z.string().datetime().describe("ISO-8601 UTC timestamp ending in Z");
 const timeZone = text.describe("IANA time zone, e.g. America/New_York or UTC");
 const bookingUid = text.describe("Booking UID, not the numeric booking ID");
+const seats = z.union([
+  z.object({
+    seatsPerTimeSlot: id.max(1000),
+    showAttendeeInfo: z.boolean(),
+    showAvailabilityCount: z.boolean(),
+  }),
+  z.object({ disabled: z.literal(true) }),
+]);
+const eventTypeFields = {
+  title: text,
+  slug: text,
+  lengthInMinutes: id,
+  description: z.string().optional(),
+  seats: seats.optional(),
+};
 
 export const tools: AgentTool[] = [
   tool(
@@ -47,7 +62,7 @@ export const tools: AgentTool[] = [
   ),
   tool(
     "get_available_slots",
-    "Find available slots before booking or rescheduling. Provide eventTypeId OR eventTypeSlug plus username. start/end are ISO-8601 UTC timestamps; results default to UTC.",
+    "Find available slots before booking or rescheduling. Provide eventTypeId OR eventTypeSlug plus username. start/end are ISO-8601 UTC timestamps; results default to UTC. Seated slots expose seatsBooked, seatsRemaining and seatsTotal. Each attendee books their own seat with create_booking at the same start time.",
     z.object({
       eventTypeId: id.optional(),
       eventTypeSlug: text.optional(),
@@ -65,7 +80,7 @@ export const tools: AgentTool[] = [
   ),
   tool(
     "create_booking",
-    "Create a booking after checking availability and confirming with the user. start must be ISO-8601 UTC ending in Z. attendee.timeZone is an IANA zone. Store the returned UID for changes.",
+    "Create a booking after checking availability and confirming with the user. start must be ISO-8601 UTC ending in Z. attendee.timeZone is an IANA zone. For seated events, each attendee books their own seat using the same eventTypeId and start time; guests are not separate seat reservations. Store the returned UID for changes.",
     z.object({
       eventTypeId: id,
       start: utc,
@@ -120,6 +135,37 @@ export const tools: AgentTool[] = [
         path: `/${encodeURIComponent(uid)}/cancel`,
         body: { cancellationReason: reason },
       }),
+    true
+  ),
+  tool(
+    "add_booking_guests",
+    "Add 1–10 guests to an existing booking after user confirmation (30 total maximum). Sends notifications; not a substitute for booking individual seats on seated events.",
+    z.object({
+      bookingUid,
+      guests: z
+        .array(z.object({ email: z.string().email(), name: text.optional(), timeZone: timeZone.optional() }))
+        .min(1)
+        .max(10),
+    }),
+    ({ bookingUid: uid, ...body }, c) =>
+      c.request("bookings", { path: `/${encodeURIComponent(uid)}/guests`, body }),
+    true
+  ),
+  tool(
+    "create_event_type",
+    "Create a bookable event type after user confirmation. Seated event types let many people book the same slot for workshops, classes or group sessions. Configure seatsPerTimeSlot, showAttendeeInfo and showAvailabilityCount in seats.",
+    z.object(eventTypeFields),
+    (body, c) => c.request("event-types", { body }),
+    true
+  ),
+  tool(
+    "update_event_type",
+    "Update an event type after user confirmation. Only supplied fields change. Configure seats for group sessions, or pass seats: { disabled: true } to disable seats.",
+    z.object({ ...z.object(eventTypeFields).partial().shape, eventTypeId: id }),
+    ({ eventTypeId, ...body }, c) => {
+      if (Object.keys(body).length === 0) throw new Error("Provide at least one event type field to update");
+      return c.request("event-types", { path: `/${eventTypeId}`, method: "PATCH", body });
+    },
     true
   ),
   tool(

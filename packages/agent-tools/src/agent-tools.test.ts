@@ -97,7 +97,7 @@ describe("tools", () => {
     expect(vi.mocked(fetch).mock.calls[0][1]?.body).toBe('{"cancellationReason":"Changed plans"}');
   });
   it("exports JSON schemas and filters all mutations", () => {
-    expect(toFunctionDefinitions()).toHaveLength(9);
+    expect(toFunctionDefinitions()).toHaveLength(12);
     expect(toFunctionDefinitions()[0].function.parameters.type).toBe("object");
     expect(getTools({ readOnly: true }).map((entry) => entry.name)).toEqual([
       "get_me",
@@ -107,6 +107,114 @@ describe("tools", () => {
       "get_booking",
       "list_schedules",
     ]);
+  });
+  it.each([
+    {
+      name: "add_booking_guests",
+      input: { bookingUid: "uid/?", guests: [{ email: "ada@example.com", name: "Ada", timeZone: "UTC" }] },
+      path: "bookings/uid%2F%3F/guests",
+      method: "POST",
+      version: "2024-08-13",
+      body: { guests: [{ email: "ada@example.com", name: "Ada", timeZone: "UTC" }] },
+    },
+    {
+      name: "create_event_type",
+      input: {
+        title: "Workshop",
+        slug: "workshop",
+        lengthInMinutes: 60,
+        description: "Learn together",
+        seats: { seatsPerTimeSlot: 10, showAttendeeInfo: false, showAvailabilityCount: true },
+      },
+      path: "event-types",
+      method: "POST",
+      version: "2024-06-14",
+    },
+    {
+      name: "update_event_type",
+      input: {
+        eventTypeId: 42,
+        title: "Class",
+        slug: "class",
+        lengthInMinutes: 30,
+        description: "New class",
+        seats: { seatsPerTimeSlot: 20, showAttendeeInfo: true, showAvailabilityCount: false },
+      },
+      path: "event-types/42",
+      method: "PATCH",
+      version: "2024-06-14",
+      body: {
+        title: "Class",
+        slug: "class",
+        lengthInMinutes: 30,
+        description: "New class",
+        seats: { seatsPerTimeSlot: 20, showAttendeeInfo: true, showAvailabilityCount: false },
+      },
+    },
+    {
+      name: "update_event_type",
+      input: { eventTypeId: 42, seats: { disabled: true } },
+      path: "event-types/42",
+      method: "PATCH",
+      version: "2024-06-14",
+      body: { seats: { disabled: true } },
+    },
+    {
+      name: "create_event_type",
+      input: { title: "Intro", slug: "intro", lengthInMinutes: 15 },
+      path: "event-types",
+      method: "POST",
+      version: "2024-06-14",
+    },
+    {
+      name: "add_booking_guests",
+      input: { bookingUid: "uid", guests: [{ email: "ada@example.com" }] },
+      path: "bookings/uid/guests",
+      method: "POST",
+      version: "2024-08-13",
+      body: { guests: [{ email: "ada@example.com" }] },
+    },
+  ])("maps $name to $method $path", async ({ name, input, path, method, version, body }) => {
+    mockResponse();
+    await run(name, input);
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toBe(`https://cal.example/api/v2/${path}`);
+    expect(init).toMatchObject({
+      method,
+      headers: { "cal-api-version": version, "Content-Type": "application/json" },
+    });
+    expect(JSON.parse(String(init?.body))).toEqual(body ?? input);
+  });
+  it.each([
+    ["add_booking_guests", { bookingUid: "uid", guests: [] }],
+    ["add_booking_guests", { bookingUid: "uid", guests: [{ email: "invalid" }] }],
+    [
+      "add_booking_guests",
+      { bookingUid: "uid", guests: Array.from({ length: 11 }, () => ({ email: "ada@example.com" })) },
+    ],
+    ["create_event_type", {}],
+    ["create_event_type", { title: "Class", slug: "class", lengthInMinutes: 0 }],
+    ["update_event_type", { eventTypeId: 42 }],
+    ["update_event_type", { eventTypeId: 42, seats: { disabled: false } }],
+    [
+      "update_event_type",
+      {
+        eventTypeId: 42,
+        seats: { seatsPerTimeSlot: 1001, showAttendeeInfo: true, showAvailabilityCount: true },
+      },
+    ],
+  ])("rejects invalid %s input before fetching", (name, input) => {
+    mockResponse();
+    expect(() => run(String(name), input)).toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["add_booking_guests", { bookingUid: "uid", guests: [{ email: "ada@example.com" }] }],
+    ["create_event_type", { title: "Class", slug: "class", lengthInMinutes: 30 }],
+    ["update_event_type", { eventTypeId: 42, seats: { disabled: true } }],
+  ])("propagates API errors from %s", async (name, input) => {
+    mockResponse({ error: { message: "Forbidden" } }, 403);
+    await expect(run(String(name), input)).rejects.toThrow('Cal API 403: {"error":{"message":"Forbidden"}}');
   });
   it("registers only read tools over MCP and reports handler errors", async () => {
     const server = createMcpServer(client, { readOnly: true });
