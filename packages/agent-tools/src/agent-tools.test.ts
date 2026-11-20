@@ -3,7 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CalAccounts, clientFromEnv } from "./accounts.js";
 import { apiVersions, CalClient } from "./client.js";
-import { createMcpServer } from "./mcp.js";
+import { createMcpServer, MCP_SERVER_VERSION } from "./mcp.js";
 import { getTools, toFunctionDefinitions, tools } from "./tools.js";
 
 const client = new CalClient({ apiKey: "test-key", baseUrl: "https://cal.example/api/" });
@@ -242,6 +242,7 @@ describe("tools", () => {
     await server.connect(a);
     await peer.connect(b);
     try {
+      expect(peer.getServerVersion()?.version).toBe(MCP_SERVER_VERSION);
       expect((await peer.listTools()).tools.map((entry) => entry.name)).toEqual(
         getTools({ readOnly: true }).map((entry) => entry.name)
       );

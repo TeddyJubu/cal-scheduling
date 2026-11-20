@@ -1,11 +1,16 @@
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { CalAccounts } from "./accounts.js";
 import type { CalClient } from "./client.js";
 import { getTools } from "./tools.js";
 
+export const MCP_SERVER_VERSION: string = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8")
+).version;
+
 export function createMcpServer(client: CalClient | CalAccounts, options: { readOnly?: boolean } = {}) {
-  const server = new McpServer({ name: "cal-mcp", version: "0.3.0" });
+  const server = new McpServer({ name: "cal-mcp", version: MCP_SERVER_VERSION });
   const accounts = client instanceof CalAccounts ? client : undefined;
   const fallback = client instanceof CalAccounts ? client.client() : client;
   for (const entry of getTools({ ...options, accounts })) {
