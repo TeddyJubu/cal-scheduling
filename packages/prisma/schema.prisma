@@ -470,6 +470,7 @@ model User {
   organization       Team?              @relation("scope", fields: [organizationId], references: [id], onDelete: SetNull)
   accessCodes        AccessCode[]
   bookingRedirects   OutOfOfficeEntry[]
+  communityEvents    CommunityEvent[]
   bookingRedirectsTo OutOfOfficeEntry[] @relation(name: "toUser")
 
   // Used to lock the user account
@@ -1647,6 +1648,60 @@ model Avatar {
 
   @@unique([teamId, userId, isBanner])
   @@map(name: "avatars")
+}
+
+enum CommunityEventStatus {
+  SCHEDULED
+  CANCELLED
+}
+
+enum CommunityEventRsvpStatus {
+  GOING
+  MAYBE
+  NOT_GOING
+}
+
+model CommunityEvent {
+  id            Int                  @id @default(autoincrement())
+  uid           String               @unique @default(uuid())
+  userId        Int
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug          String
+  title         String
+  description   String?
+  category      String?
+  coverImageUrl String?
+  startTime     DateTime
+  endTime       DateTime
+  timeZone      String
+  location      String?
+  capacity      Int?
+  hidden        Boolean              @default(false)
+  showAttendees Boolean              @default(true)
+  status        CommunityEventStatus @default(SCHEDULED)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  rsvps         CommunityEventRsvp[]
+
+  @@unique([userId, slug])
+  @@index([userId, startTime])
+}
+
+model CommunityEventRsvp {
+  id        Int                      @id @default(autoincrement())
+  uid       String                   @unique @default(uuid())
+  eventId   Int
+  event     CommunityEvent           @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  status    CommunityEventRsvpStatus
+  plusOnes  Int                      @default(0)
+  note      String?
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+
+  @@unique([eventId, email])
+  @@index([eventId, status])
 }
 
 model OutOfOfficeEntry {
