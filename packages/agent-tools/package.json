@@ -1,0 +1,54 @@
+{
+  "name": "@teddyjubu/cal-agent-tools",
+  "version": "0.2.0",
+  "description": "Standalone Cal.diy HTTP scheduling tools and MCP stdio server",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TeddyJubu/cal-scheduling",
+    "directory": "packages/agent-tools"
+  },
+  "keywords": [
+    "mcp",
+    "cal",
+    "scheduling",
+    "ai-agent"
+  ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "bin": {
+    "cal-mcp": "dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc && node --input-type=module -e \"import { chmodSync } from 'node:fs'; chmodSync('dist/bin.js', 0o755);\"",
+    "prepack": "yarn build",
+    "type-check": "tsc --noEmit",
+    "type-check:ci": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.26.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.10",
+    "@types/node": "^20.17.23",
+    "typescript": "5.9.3",
+    "vitest": "4.1.8"
+  }
+}
