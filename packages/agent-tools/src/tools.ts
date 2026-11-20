@@ -1,5 +1,6 @@
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import { z } from "zod";
+import type { CalAccounts } from "./accounts.js";
 import type { CalClient } from "./client.js";
 
 interface AgentTool {
@@ -46,8 +47,84 @@ const eventTypeFields = {
   description: z.string().optional(),
   seats: seats.optional(),
 };
+const eventUid = text.describe("Community event UID, not a booking or event-type ID");
+const eventFields = {
+  title: text,
+  slug: text.optional(),
+  startTime: z.string().datetime({ offset: true }),
+  endTime: z.string().datetime({ offset: true }),
+  timeZone,
+  description: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  coverImageUrl: z.string().url().nullable().optional(),
+  location: z.string().nullable().optional(),
+  capacity: id.nullable().optional(),
+  hidden: z.boolean().optional(),
+  showAttendees: z.boolean().optional(),
+};
 
 export const tools: AgentTool[] = [
+  tool(
+    "create_event",
+    "Create a one-off community event after user confirmation. Use ISO-8601 startTime/endTime (with UTC Z or offset), an IANA timeZone, and optional free-text category. capacity null means unlimited. hidden means unlisted but reachable by link; showAttendees controls public first names. Returns publicUrl when a web URL and host username are available.",
+    z.object(eventFields),
+    async (body, c) => c.withPublicEventUrl(await c.request("community-events", { body })),
+    true
+  ),
+  tool(
+    "list_events",
+    "List this account's community events, optionally upcoming or past. Paginate with take (1–100) and skip. Owner views include visibility flags and RSVP counts.",
+    z.object({
+      period: z.enum(["upcoming", "past"]).optional(),
+      take: id.max(100).optional(),
+      skip: z.number().int().min(0).optional(),
+    }),
+    (query, c) => c.request("community-events", { query })
+  ),
+  tool(
+    "get_event",
+    "Get an owned community event by UID, including visibility, attendance counts, and publicUrl when configured. Use before making changes.",
+    z.object({ eventUid }),
+    async ({ eventUid: uid }, c) =>
+      c.withPublicEventUrl(await c.request("community-events", { path: `/${encodeURIComponent(uid)}` }))
+  ),
+  tool(
+    "update_event",
+    "Update an owned community event after confirmation. Only supplied fields change; ISO-8601 times include UTC Z or an offset. Set capacity to null for unlimited attendance.",
+    z.object(eventFields).partial().extend({ eventUid }),
+    ({ eventUid: uid, ...body }, c) =>
+      c.request("community-events", { path: `/${encodeURIComponent(uid)}`, method: "PATCH", body }),
+    true
+  ),
+  tool(
+    "cancel_event",
+    "Cancel an owned community event by UID after explicit user confirmation. Cancelled events cannot accept RSVPs.",
+    z.object({ eventUid }),
+    ({ eventUid: uid }, c) =>
+      c.request("community-events", { path: `/${encodeURIComponent(uid)}/cancel`, method: "POST", body: {} }),
+    true
+  ),
+  tool(
+    "rsvp_event",
+    "Add or update an RSVP on behalf of someone for an owned community event, after confirmation. Reusing their email updates the RSVP. GOING consumes 1 + plusOnes seats; full events return HTTP 409. Cancelled or ended events reject RSVPs.",
+    z.object({
+      eventUid,
+      name: text,
+      email: z.string().email(),
+      status: z.enum(["GOING", "MAYBE", "NOT_GOING"]),
+      plusOnes: z.number().int().min(0).max(10).optional(),
+      note: z.string().nullable().optional(),
+    }),
+    ({ eventUid: uid, ...body }, c) =>
+      c.request("community-events", { path: `/${encodeURIComponent(uid)}/rsvps`, body }),
+    true
+  ),
+  tool(
+    "list_event_rsvps",
+    "List RSVPs for an owned community event, including emails and notes. Treat attendee details as private and share only with the event owner.",
+    z.object({ eventUid }),
+    ({ eventUid: uid }, c) => c.request("community-events", { path: `/${encodeURIComponent(uid)}/rsvps` })
+  ),
   tool(
     "get_me",
     "Get the authenticated user's profile. Use to identify the account before scheduling.",
@@ -176,11 +253,12 @@ export const tools: AgentTool[] = [
   ),
 ];
 
-export function getTools(options: { readOnly?: boolean } = {}): AgentTool[] {
+export function getTools(options: { readOnly?: boolean; accounts?: CalAccounts } = {}): AgentTool[] {
+  if (options.accounts) return options.accounts.getTools({ readOnly: options.readOnly });
   return tools.filter((entry) => !options.readOnly || !entry.mutating);
 }
 
-export function toFunctionDefinitions(options: { readOnly?: boolean } = {}) {
+export function toFunctionDefinitions(options: { readOnly?: boolean; accounts?: CalAccounts } = {}) {
   return getTools(options).map(({ name, description, inputSchema }) => ({
     type: "function" as const,
     function: { name, description, parameters: toJsonSchemaCompat(inputSchema, { strictUnions: true }) },
