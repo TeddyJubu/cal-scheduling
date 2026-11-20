@@ -1906,6 +1906,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@calcom/agent-tools@workspace:packages/agent-tools":
+  version: 0.0.0-use.local
+  resolution: "@calcom/agent-tools@workspace:packages/agent-tools"
+  dependencies:
+    "@biomejs/biome": "npm:2.3.10"
+    "@modelcontextprotocol/sdk": "npm:1.26.0"
+    "@types/node": "npm:^20.17.23"
+    typescript: "npm:5.9.3"
+    vitest: "npm:4.1.8"
+    zod: "npm:3.25.76"
+  bin:
+    cal-mcp: dist/bin.js
+  languageName: unknown
+  linkType: soft
+
 "@calcom/alby@workspace:packages/app-store/alby":
   version: 0.0.0-use.local
   resolution: "@calcom/alby@workspace:packages/app-store/alby"
