@@ -1,7 +1,7 @@
 import { ErrorCode } from "@calcom/lib/errorCodes";
 import { ErrorWithCode } from "@calcom/lib/errors";
 import { slugify } from "@calcom/lib/slugify";
-import type { z } from "zod";
+import { z } from "zod";
 import type { CommunityEventRepository, EventRecord } from "./CommunityEventRepository";
 import type { EventInput } from "./communityEvent";
 import { eventInput, rsvpInput } from "./communityEvent";
@@ -123,6 +123,32 @@ export class CommunityEventService {
   }
   async getPublicEventByUid(uid: string) {
     return this.publicDto(await this.event(uid));
+  }
+  async getOwnerEvent(userId: number, uid: string) {
+    const event = await this.event(uid);
+    this.owner(event, userId);
+    return { ...(await this.publicDto(event)), hidden: event.hidden, showAttendees: event.showAttendees };
+  }
+  async listEvents(
+    userId: number,
+    options: { period?: "upcoming" | "past"; take?: number; skip?: number } = {}
+  ) {
+    const query = parse(
+      z.object({
+        period: z.enum(["upcoming", "past"]).optional(),
+        take: z.number().int().min(1).max(100).default(20),
+        skip: z.number().int().min(0).default(0),
+      }),
+      options
+    );
+    const events = await this.repository.listByUser(userId, query);
+    return Promise.all(
+      events.map(async (event) => ({
+        ...(await this.publicDto(event)),
+        hidden: event.hidden,
+        showAttendees: event.showAttendees,
+      }))
+    );
   }
 
   async rsvp(
