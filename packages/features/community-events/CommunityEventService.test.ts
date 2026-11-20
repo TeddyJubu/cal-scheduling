@@ -167,4 +167,46 @@ describe("CommunityEventService", () => {
       attendees: [],
     });
   });
+  it("ignores undefined updates and rejects capacity below the full headcount", async () => {
+    await service.updateEvent(2, "event", { startTime: undefined, title: "Changed" });
+    expect(repository.update).toHaveBeenCalledWith("event", { title: "Changed" });
+    repository.aggregateCounts.mockResolvedValue(groups(1, 2));
+    await expect(service.updateEvent(2, "event", { capacity: 2 })).rejects.toMatchObject({
+      code: ErrorCode.BadRequest,
+    });
+    await service.updateEvent(2, "event", { capacity: 3 });
+    await service.updateEvent(2, "event", { capacity: null });
+  });
+  it.each([
+    "javascript:alert(1)",
+    "data:image/png;base64,a",
+    "ftp://example.com/a",
+  ])("rejects unsafe covers %s on create and update", async (coverImageUrl) => {
+    await expect(service.createEvent(2, { ...input, coverImageUrl })).rejects.toMatchObject({
+      code: ErrorCode.BadRequest,
+    });
+    await expect(service.updateEvent(2, "event", { coverImageUrl })).rejects.toMatchObject({
+      code: ErrorCode.BadRequest,
+    });
+  });
+  it.each([
+    null,
+    "http://example.com/a",
+    "https://example.com/a",
+  ])("accepts valid cover %s", async (coverImageUrl) => {
+    await service.updateEvent(2, "event", { coverImageUrl });
+    expect(repository.update).toHaveBeenCalledWith("event", { coverImageUrl });
+  });
+  it("requires the RSVP uid for public updates and never returns stored notes", async () => {
+    repository.findRsvp.mockResolvedValue({ uid: rsvp.uid });
+    for (const options of [{}, { rsvpUid: "wrong" }])
+      await expect(service.rsvp("event", rsvp, options)).rejects.toMatchObject({ code: "RSVP_EXISTS" });
+    expect(repository.upsertRsvp).not.toHaveBeenCalled();
+    expect(await service.rsvp("event", rsvp, { rsvpUid: rsvp.uid })).toEqual({
+      uid: rsvp.uid,
+      status: rsvp.status,
+      plusOnes: 1,
+    });
+    expect(await service.rsvp("event", rsvp, { trusted: true })).toMatchObject({ note: rsvp.note });
+  });
 });

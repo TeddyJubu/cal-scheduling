@@ -40,7 +40,10 @@ export class CommunityEventRepository {
     return this.prismaClient.communityEvent.findUnique({ where: { uid }, select: eventSelect });
   }
   findByUserAndSlug(user: number | string, slug: string) {
-    const where = typeof user === "number" ? { userId: user, slug } : { user: { username: user }, slug };
+    const where =
+      typeof user === "number"
+        ? { userId: user, slug }
+        : { user: { username: user, organizationId: null }, slug };
     return this.prismaClient.communityEvent.findFirst({ where, select: eventSelect });
   }
   listByUser(
@@ -69,6 +72,12 @@ export class CommunityEventRepository {
       select: rsvpSelect,
     });
   }
+  findRsvp(eventId: number, email: string) {
+    return this.prismaClient.communityEventRsvp.findUnique({
+      where: { eventId_email: { eventId, email } },
+      select: { uid: true },
+    });
+  }
   listRsvps(eventId: number) {
     return this.prismaClient.communityEventRsvp.findMany({
       where: { eventId },
@@ -88,12 +97,13 @@ export class CommunityEventRepository {
     uid: string,
     operation: (repository: CommunityEventRepository) => Promise<T>
   ): Promise<T> {
-    if (!("$transaction" in this.prismaClient)) return operation(this);
-    return this.prismaClient.$transaction(async (tx) => {
+    const locked = async (tx: Prisma.TransactionClient) => {
       // Serialize capacity checks and writes across processes, not just within one server.
       await tx.$queryRaw`SELECT "id" FROM "CommunityEvent" WHERE "uid" = ${uid} FOR UPDATE`;
       return operation(new CommunityEventRepository(tx));
-    });
+    };
+    if (!("$transaction" in this.prismaClient)) return locked(this.prismaClient);
+    return this.prismaClient.$transaction(locked);
   }
 }
 
