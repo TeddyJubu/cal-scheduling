@@ -6,7 +6,7 @@ import { Button } from "@calcom/ui/components/button/Button";
 import { TextField } from "@calcom/ui/components/form/inputs/TextField";
 import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const choices = {
   GOING: "community_event_going",
@@ -19,15 +19,18 @@ export default function RsvpForm({ uid }: { uid: string }) {
   const [status, setStatus] = useState<keyof typeof choices>("GOING");
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<"success" | "error" | "full" | "rate" | "exists" | null>(null);
-  const [rsvpUid, setRsvpUid] = useState<string>();
-  const storageKey = `community-event-rsvp:${uid}`;
+  const rsvpUids = useRef(new Map<string, string>());
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "")
+      .trim()
+      .toLowerCase();
+    const storageKey = `community-event-rsvp:${uid}:${email}`;
     setPending(true);
     setFeedback(null);
     try {
-      let savedUid = rsvpUid;
+      let savedUid = rsvpUids.current.get(storageKey);
       try {
         savedUid = localStorage.getItem(storageKey) ?? savedUid;
       } catch {}
@@ -36,7 +39,7 @@ export default function RsvpForm({ uid }: { uid: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.get("name"),
-          email: form.get("email"),
+          email,
           plusOnes: Number(form.get("plusOnes") || 0),
           status,
           rsvpUid: savedUid,
@@ -44,7 +47,7 @@ export default function RsvpForm({ uid }: { uid: string }) {
       });
       const result = await response.json();
       if (response.ok) {
-        setRsvpUid(result.data.uid);
+        rsvpUids.current.set(storageKey, result.data.uid);
         try {
           localStorage.setItem(storageKey, result.data.uid);
         } catch {}

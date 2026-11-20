@@ -20,15 +20,16 @@ vi.mock("@calcom/ui/components/form/inputs/TextField", () => ({
     <input aria-label={name} name={name} type={type} defaultValue={defaultValue} />
   ),
 }));
-function submit() {
+function submit(email = "reader@example.com") {
   fireEvent.change(screen.getByLabelText("name"), { target: { value: "Reader" } });
-  fireEvent.change(screen.getByLabelText("email"), { target: { value: "reader@example.com" } });
+  fireEvent.change(screen.getByLabelText("email"), { target: { value: email } });
   fireEvent.click(screen.getByRole("button", { name: "community_event_save" }));
 }
 beforeEach(() => localStorage.clear());
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 describe("RSVP form tokens", () => {
   it("stores the returned token and sends it after remounting", async () => {
@@ -39,14 +40,43 @@ describe("RSVP form tokens", () => {
       );
     vi.stubGlobal("fetch", fetcher);
     const view = render(<RsvpForm uid="event" />);
-    submit();
-    await waitFor(() => expect(localStorage.getItem("community-event-rsvp:event")).toBe("saved"));
+    submit(" READER@EXAMPLE.COM ");
+    await waitFor(() =>
+      expect(localStorage.getItem("community-event-rsvp:event:reader@example.com")).toBe("saved")
+    );
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).not.toHaveProperty("rsvpUid");
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toHaveProperty("email", "reader@example.com");
     view.unmount();
     render(<RsvpForm uid="event" />);
     submit();
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
     expect(JSON.parse(fetcher.mock.calls[1][1].body)).toHaveProperty("rsvpUid", "saved");
+  });
+  it.each([false, true])("keeps each email's token separate when storage is blocked=%s", async (blocked) => {
+    if (blocked) {
+      vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+        throw new Error("Unavailable");
+      });
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new Error("Unavailable");
+      });
+    }
+    const fetcher = vi.fn().mockImplementation(async (_url: string, options: RequestInit) => {
+      const { email } = JSON.parse(String(options.body));
+      return new Response(JSON.stringify({ data: { uid: `token:${email}` } }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetcher);
+    render(<RsvpForm uid="event" />);
+    const emails = ["reader@example.com", "second@example.com", "READER@EXAMPLE.COM", "second@example.com"];
+    for (let index = 0; index < emails.length; index++) {
+      const email = emails[index];
+      submit(email);
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "community_event_save" })).toHaveProperty("disabled", false)
+      );
+      const body = JSON.parse(fetcher.mock.calls[index][1].body);
+      expect(body.rsvpUid).toBe(index < 2 ? undefined : `token:${email.toLowerCase()}`);
+    }
   });
   it.each([
     ["RSVP_EXISTS", "exists"],
@@ -61,6 +91,6 @@ describe("RSVP form tokens", () => {
     await waitFor(() =>
       expect(screen.getByRole("status").textContent).toContain(`community_event_feedback_${feedback}`)
     );
-    expect(localStorage.getItem("community-event-rsvp:event")).toBeNull();
+    expect(localStorage.getItem("community-event-rsvp:event:reader@example.com")).toBeNull();
   });
 });
