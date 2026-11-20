@@ -1,5 +1,6 @@
 import { PlatformEndpointsModule } from "@/platform/platform-endpoints-module";
 import { AtomsModule } from "@/modules/atoms/atoms.module";
+import { CommunityEventsModule } from "@/modules/community-events/community-events.module";
 import { OAuth2Module } from "@/modules/auth/oauth2/oauth2.module";
 import { CalUnifiedCalendarsModule } from "@/modules/cal-unified-calendars/cal-unified-calendars.module";
 import { ConferencingModule } from "@/modules/conferencing/conferencing.module";
@@ -17,6 +18,7 @@ import { WebhooksModule } from "./webhooks/webhooks.module";
 @Module({
   imports: [
     OAuth2Module,
+    CommunityEventsModule,
     OAuthClientModule,
     PlatformEndpointsModule,
     TimezoneModule,

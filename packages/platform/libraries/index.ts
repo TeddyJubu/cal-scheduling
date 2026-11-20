@@ -11,6 +11,8 @@ import { credentialForCalendarServiceSelect } from "@calcom/prisma/selects/crede
 import { paymentDataSelect } from "@calcom/prisma/selects/payment";
 
 export { slugify } from "@calcom/lib/slugify";
+export { CommunityEventRepository } from "@calcom/features/community-events/CommunityEventRepository";
+export { CommunityEventService } from "@calcom/features/community-events/CommunityEventService";
 export { slugifyLenient } from "@calcom/lib/slugify-lenient";
 export { getBookingForReschedule };
 
