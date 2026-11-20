@@ -61,7 +61,6 @@ describe("Public RSVP route", () => {
       {
         ...input,
         email: "reader@example.com",
-        plusOnes: 0,
       },
       { rsvpUid: undefined, trusted: false }
     );
@@ -89,8 +88,11 @@ describe("Public RSVP route", () => {
     expect(communityEventService.rsvp).not.toHaveBeenCalled();
   });
   it("passes a returning visitor's token without trusting body flags", async () => {
-    vi.mocked(communityEventService.rsvp).mockResolvedValue({ uid: "saved", status: "GOING", plusOnes: 0 });
-    expect((await send({ ...input, rsvpUid: "saved", trusted: true })).status).toBe(200);
+    vi.mocked(communityEventService.rsvp).mockResolvedValue({ uid: "saved", status: "GOING", plusOnes: 2 });
+    const response = await send({ ...input, rsvpUid: "saved", trusted: true });
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.plusOnes).toBe(2);
+    expect(vi.mocked(communityEventService.rsvp).mock.calls[0][1]).not.toHaveProperty("plusOnes");
     expect(communityEventService.rsvp).toHaveBeenCalledWith(
       "event-uid",
       expect.not.objectContaining({ rsvpUid: expect.anything() }),
