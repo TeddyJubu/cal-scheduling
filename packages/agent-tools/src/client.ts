@@ -1,6 +1,9 @@
+import { z } from "zod";
+
 export interface ClientConfig {
   apiKey: string;
   baseUrl?: string;
+  webUrl?: string;
 }
 
 export const apiVersions = {
@@ -9,10 +12,32 @@ export const apiVersions = {
   "event-types": "2024-06-14",
   schedules: "2024-06-11",
   me: "2024-06-14",
+  "community-events": "2024-06-14",
 } as const;
 
 export class CalClient {
   constructor(private readonly config: ClientConfig) {}
+
+  withPublicEventUrl(response: unknown): unknown {
+    if (!this.config.webUrl) return response;
+    const parsed = z
+      .object({
+        data: z
+          .object({ slug: z.string(), host: z.object({ username: z.string() }).passthrough() })
+          .passthrough(),
+      })
+      .passthrough()
+      .safeParse(response);
+    if (!parsed.success) return response;
+    const { slug, host } = parsed.data.data;
+    return {
+      ...parsed.data,
+      data: {
+        ...parsed.data.data,
+        publicUrl: `${this.config.webUrl.replace(/\/+$/, "")}/events/${encodeURIComponent(host.username)}/${encodeURIComponent(slug)}`,
+      },
+    };
+  }
 
   async request(
     resource: keyof typeof apiVersions,

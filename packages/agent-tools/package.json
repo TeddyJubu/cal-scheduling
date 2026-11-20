@@ -1,6 +1,6 @@
 {
   "name": "@teddyjubu/cal-agent-tools",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Standalone Cal.diy HTTP scheduling tools and MCP stdio server",
   "type": "module",
   "license": "MIT",
