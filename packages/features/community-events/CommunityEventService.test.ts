@@ -55,6 +55,54 @@ beforeEach(() => {
 });
 
 describe("CommunityEventService", () => {
+  describe("public host listings", () => {
+    beforeEach(() => {
+      repository.findPublicHost.mockResolvedValue({ id: 2, name: "Host", username: "host" });
+      repository.publicFacets.mockResolvedValue([
+        { category: "Books", timeZone: "UTC" },
+        { category: "Books", timeZone: "Europe/Paris" },
+        { category: null, timeZone: "UTC" },
+      ]);
+      repository.listPublicEvents.mockResolvedValue([
+        event,
+        { ...event, id: 3, uid: "cancelled", status: "CANCELLED", capacity: null },
+      ]);
+      repository.publicCounts.mockResolvedValue([
+        { eventId: 1, status: "GOING", _count: { _all: 2 }, _sum: { plusOnes: 1 } },
+        { eventId: 1, status: "MAYBE", _count: { _all: 2 }, _sum: { plusOnes: 5 } },
+      ]);
+    });
+    it("returns public counts including plus-ones in one batch, without private RSVP data", async () => {
+      const options = { tab: "past" as const, category: "Books", month: "2026-11" };
+      const result = await service.listPublicEvents("host", options);
+      expect(result.categories).toEqual(["Books"]);
+      expect(result.events).toMatchObject([
+        { goingCount: 3, maybeCount: 2, spotsLeft: 1 },
+        { status: "CANCELLED", goingCount: 0, spotsLeft: null },
+      ]);
+      expect(repository.listPublicEvents).toHaveBeenCalledWith(2, {
+        ...options,
+        timeZones: ["UTC", "Europe/Paris"],
+      });
+      expect(repository.publicCounts).toHaveBeenCalledExactlyOnceWith([1, 3]);
+      expect(repository.listRsvps).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toMatch(/ada@example|Private note|email/);
+    });
+    it("returns an empty listing for an existing host, without a count query", async () => {
+      repository.listPublicEvents.mockResolvedValue([]);
+      expect((await service.listPublicEvents("host")).events).toEqual([]);
+      expect(repository.publicCounts).not.toHaveBeenCalled();
+    });
+    it("rejects unknown hosts and invalid month filters", async () => {
+      repository.findPublicHost.mockResolvedValue(null);
+      await expect(service.listPublicEvents("missing")).rejects.toHaveProperty("code", ErrorCode.NotFound);
+      await expect(service.listPublicEvents("host", { month: "2026-13" })).rejects.toHaveProperty(
+        "code",
+        ErrorCode.BadRequest
+      );
+      expect(repository.publicFacets).not.toHaveBeenCalled();
+    });
+  });
   it("generates a slug and returns a DTO", async () => {
     expect(await service.createEvent(2, input)).toMatchObject({
       slug: "cafe-book-club",

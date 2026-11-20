@@ -3,8 +3,8 @@ import { ErrorWithCode } from "@calcom/lib/errors";
 import { slugify } from "@calcom/lib/slugify";
 import { z } from "zod";
 import type { CommunityEventRepository, EventRecord } from "./CommunityEventRepository";
-import type { EventInput } from "./communityEvent";
-import { eventInput, rsvpInput } from "./communityEvent";
+import type { EventInput, PublicEventListInput } from "./communityEvent";
+import { eventInput, publicEventListInput, rsvpInput } from "./communityEvent";
 
 function parse<S extends z.ZodTypeAny>(schema: S, input: unknown): z.infer<S> {
   const result = schema.safeParse(input);
@@ -123,6 +123,38 @@ export class CommunityEventService {
   }
   async getPublicEventByUid(uid: string) {
     return this.publicDto(await this.event(uid));
+  }
+  async listPublicEvents(username: string, input: PublicEventListInput = {}) {
+    const options = parse(publicEventListInput, input);
+    const host = await this.repository.findPublicHost(username);
+    if (!host) throw new ErrorWithCode(ErrorCode.NotFound, "Community host not found");
+    const facets = await this.repository.publicFacets(host.id);
+    const events = await this.repository.listPublicEvents(host.id, {
+      ...options,
+      timeZones: Array.from(new Set(facets.map((row) => row.timeZone))),
+    });
+    const groups = events.length ? await this.repository.publicCounts(events.map((event) => event.id)) : [];
+    const counts = new Map<number, { goingCount: number; maybeCount: number }>();
+    for (const group of groups) {
+      const count = counts.get(group.eventId) ?? { goingCount: 0, maybeCount: 0 };
+      if (group.status === "GOING") count.goingCount = group._count._all + (group._sum.plusOnes ?? 0);
+      if (group.status === "MAYBE") count.maybeCount = group._count._all;
+      counts.set(group.eventId, count);
+    }
+    return {
+      host: { name: host.name, username: host.username },
+      categories: Array.from(
+        new Set(facets.flatMap((row) => (row.category?.trim() ? [row.category] : [])))
+      ).sort(),
+      events: events.map((event) => {
+        const count = counts.get(event.id) ?? { goingCount: 0, maybeCount: 0 };
+        return {
+          ...eventDto(event),
+          ...count,
+          spotsLeft: event.capacity === null ? null : Math.max(0, event.capacity - count.goingCount),
+        };
+      }),
+    };
   }
   async getOwnerEvent(userId: number, uid: string) {
     const event = await this.event(uid);

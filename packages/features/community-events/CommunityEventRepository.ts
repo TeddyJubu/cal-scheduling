@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@calcom/prisma/generated/prisma/client";
+import { fromZonedTime } from "date-fns-tz";
 
 const eventSelect = {
   id: true,
@@ -45,6 +46,57 @@ export class CommunityEventRepository {
         ? { userId: user, slug }
         : { user: { username: user, organizationId: null }, slug };
     return this.prismaClient.communityEvent.findFirst({ where, select: eventSelect });
+  }
+  findPublicHost(username: string) {
+    return this.prismaClient.user.findFirst({
+      where: { username, organizationId: null },
+      select: { id: true, name: true, username: true },
+    });
+  }
+  publicFacets(userId: number) {
+    return this.prismaClient.communityEvent.findMany({
+      where: { userId, hidden: false },
+      distinct: ["category", "timeZone"],
+      select: { category: true, timeZone: true },
+    });
+  }
+  listPublicEvents(
+    userId: number,
+    options: { tab: "upcoming" | "past"; category?: string; month?: string; timeZones: string[] }
+  ) {
+    const direction = options.tab === "past" ? "desc" : "asc";
+    const next = options.month ? new Date(`${options.month}-01T00:00:00Z`) : new Date();
+    next.setUTCMonth(next.getUTCMonth() + 1);
+    return this.prismaClient.communityEvent.findMany({
+      where: {
+        userId,
+        hidden: false,
+        category: options.category,
+        endTime: options.tab === "past" ? { lte: new Date() } : { gt: new Date() },
+        ...(options.month
+          ? {
+              OR: options.timeZones.map((timeZone) => ({
+                timeZone,
+                startTime: {
+                  gte: fromZonedTime(`${options.month}-01T00:00:00`, timeZone),
+                  lt: fromZonedTime(next.toISOString().split("T")[0] + "T00:00:00", timeZone),
+                },
+              })),
+            }
+          : {}),
+      },
+      orderBy: [{ startTime: direction }, { id: direction }],
+      take: 50,
+      select: eventSelect,
+    });
+  }
+  publicCounts(eventIds: number[]) {
+    return this.prismaClient.communityEventRsvp.groupBy({
+      by: ["eventId", "status"],
+      where: { eventId: { in: eventIds } },
+      _count: { _all: true },
+      _sum: { plusOnes: true },
+    });
   }
   listByUser(
     userId: number,
