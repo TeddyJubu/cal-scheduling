@@ -7,6 +7,7 @@ import getIP from "@calcom/lib/getIP";
 import { HttpError } from "@calcom/lib/http-error";
 import { piiHasher } from "@calcom/lib/server/PiiHasher";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 
 export async function POST(request: Request, { params }: { params: Promise<{ uid: string }> }) {
   const { uid } = await params;
@@ -15,9 +16,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ uid
       rateLimitingType: "core",
       identifier: `community-event-rsvp:${uid}:${piiHasher.hash(getIP(request))}`,
     });
-    const input = rsvpInput.safeParse(await request.json().catch(() => null));
+    const input = rsvpInput
+      .extend({ rsvpUid: z.string().min(1).optional() })
+      .safeParse(await request.json().catch(() => null));
     if (!input.success) return NextResponse.json({ error: ErrorCode.BadRequest }, { status: 400 });
-    const rsvp = await communityEventService.rsvp(uid, input.data);
+    const { rsvpUid, ...data } = input.data;
+    const rsvp = await communityEventService.rsvp(uid, data, { rsvpUid, trusted: false });
     return NextResponse.json({
       status: "success",
       data: { uid: rsvp.uid, status: rsvp.status, plusOnes: rsvp.plusOnes },
@@ -28,6 +32,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ uid
     if (error instanceof ErrorWithCode) {
       const statuses: Record<string, number> = {
         [ErrorCode.CommunityEventFull]: 409,
+        [ErrorCode.CommunityEventRsvpExists]: 409,
         [ErrorCode.NotFound]: 404,
         [ErrorCode.BadRequest]: 400,
       };

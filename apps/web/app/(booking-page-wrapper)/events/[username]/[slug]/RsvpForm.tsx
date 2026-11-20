@@ -18,13 +18,19 @@ export default function RsvpForm({ uid }: { uid: string }) {
   const router = useRouter();
   const [status, setStatus] = useState<keyof typeof choices>("GOING");
   const [pending, setPending] = useState(false);
-  const [feedback, setFeedback] = useState<"success" | "error" | "full" | "rate" | null>(null);
+  const [feedback, setFeedback] = useState<"success" | "error" | "full" | "rate" | "exists" | null>(null);
+  const [rsvpUid, setRsvpUid] = useState<string>();
+  const storageKey = `community-event-rsvp:${uid}`;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setPending(true);
     setFeedback(null);
     try {
+      let savedUid = rsvpUid;
+      try {
+        savedUid = localStorage.getItem(storageKey) ?? savedUid;
+      } catch {}
       const response = await fetch(`/api/community-events/${encodeURIComponent(uid)}/rsvp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -33,12 +39,18 @@ export default function RsvpForm({ uid }: { uid: string }) {
           email: form.get("email"),
           plusOnes: Number(form.get("plusOnes") || 0),
           status,
+          rsvpUid: savedUid,
         }),
       });
+      const result = await response.json();
       if (response.ok) {
+        setRsvpUid(result.data.uid);
+        try {
+          localStorage.setItem(storageKey, result.data.uid);
+        } catch {}
         setFeedback("success");
         router.refresh();
-      } else if (response.status === 409) setFeedback("full");
+      } else if (response.status === 409) setFeedback(result.error === "RSVP_EXISTS" ? "exists" : "full");
       else if (response.status === 429) setFeedback("rate");
       else {
         setFeedback("error");

@@ -1,24 +1,39 @@
+import { getLocale } from "@calcom/features/auth/lib/getLocale";
 import { communityEventService } from "@calcom/features/community-events/service";
 import { ErrorCode } from "@calcom/lib/errorCodes";
 import { ErrorWithCode } from "@calcom/lib/errors";
 import { Alert } from "@calcom/ui/components/alert/Alert";
+import { buildLegacyRequest } from "@lib/buildLegacyCtx";
 import { getTranslate } from "app/_utils";
+import type { Metadata } from "next";
+import { cookies, headers } from "next/headers";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import RsvpForm from "./RsvpForm";
 
-export default async function CommunityEventPage({
-  params,
-}: {
+type Props = {
   params: Promise<{ username: string; slug: string }>;
-}) {
-  const { username, slug } = await params;
-  const event = await communityEventService.getPublicEvent(username, slug).catch((error: unknown) => {
+};
+const loadEvent = (username: string, slug: string) =>
+  communityEventService.getPublicEvent(username, slug).catch((error: unknown) => {
     if (error instanceof ErrorWithCode && error.code === ErrorCode.NotFound) notFound();
     throw error;
   });
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { username, slug } = await params;
+  const event = await loadEvent(username, slug);
+  return {
+    title: event.title,
+    description: event.description ?? undefined,
+    ...(event.hidden ? { robots: { index: false } } : {}),
+  };
+}
+export default async function CommunityEventPage({ params }: Props) {
+  const { username, slug } = await params;
+  const event = await loadEvent(username, slug);
   const t = await getTranslate();
-  const format = new Intl.DateTimeFormat(undefined, {
+  const locale = await getLocale(buildLegacyRequest(await headers(), await cookies()));
+  const format = new Intl.DateTimeFormat(locale ?? "en", {
     timeZone: event.timeZone,
     dateStyle: "full",
     timeStyle: "short",

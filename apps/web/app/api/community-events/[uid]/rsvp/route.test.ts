@@ -29,6 +29,7 @@ describe("Public RSVP route", () => {
     { ...input, email: "invalid" },
     { ...input, plusOnes: 11 },
     { ...input, status: "OTHER" },
+    { ...input, rsvpUid: 123 },
   ])("rejects invalid input %j", async (body) => {
     expect((await send(body)).status).toBe(400);
     expect(communityEventService.rsvp).not.toHaveBeenCalled();
@@ -55,11 +56,15 @@ describe("Public RSVP route", () => {
       status: "success",
       data: { uid: "rsvp-uid", status: "GOING", plusOnes: 0 },
     });
-    expect(communityEventService.rsvp).toHaveBeenCalledWith("event-uid", {
-      ...input,
-      email: "reader@example.com",
-      plusOnes: 0,
-    });
+    expect(communityEventService.rsvp).toHaveBeenCalledWith(
+      "event-uid",
+      {
+        ...input,
+        email: "reader@example.com",
+        plusOnes: 0,
+      },
+      { rsvpUid: undefined, trusted: false }
+    );
     expect(checkRateLimitAndThrowError).toHaveBeenCalledWith({
       rateLimitingType: "core",
       identifier: `community-event-rsvp:event-uid:${piiHasher.hash("192.0.2.1")}`,
@@ -67,6 +72,7 @@ describe("Public RSVP route", () => {
   });
   it.each([
     [ErrorCode.CommunityEventFull, 409],
+    [ErrorCode.CommunityEventRsvpExists, 409],
     [ErrorCode.NotFound, 404],
     [ErrorCode.BadRequest, 400],
   ] as const)("maps %s to %s", async (code, status) => {
@@ -81,6 +87,15 @@ describe("Public RSVP route", () => {
     );
     expect((await send(input)).status).toBe(429);
     expect(communityEventService.rsvp).not.toHaveBeenCalled();
+  });
+  it("passes a returning visitor's token without trusting body flags", async () => {
+    vi.mocked(communityEventService.rsvp).mockResolvedValue({ uid: "saved", status: "GOING", plusOnes: 0 });
+    expect((await send({ ...input, rsvpUid: "saved", trusted: true })).status).toBe(200);
+    expect(communityEventService.rsvp).toHaveBeenCalledWith(
+      "event-uid",
+      expect.not.objectContaining({ rsvpUid: expect.anything() }),
+      { rsvpUid: "saved", trusted: false }
+    );
   });
   it("redacts unexpected errors", async () => {
     vi.mocked(communityEventService.rsvp).mockRejectedValue(new Error("reader@example.com"));
