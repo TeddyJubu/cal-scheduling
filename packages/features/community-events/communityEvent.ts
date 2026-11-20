@@ -35,3 +35,13 @@ export const rsvpInput = z.object({
 });
 export type EventInput = z.infer<typeof eventInput>;
 export type RsvpInput = z.infer<typeof rsvpInput>;
+
+export const publicEventListInput = z.object({
+  tab: z.enum(["upcoming", "past"]).default("upcoming"),
+  category: z.string().optional(),
+  month: z
+    .string()
+    .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+    .optional(),
+});
+export type PublicEventListInput = z.input<typeof publicEventListInput>;
