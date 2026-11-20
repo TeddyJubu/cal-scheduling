@@ -96,6 +96,18 @@ describe("tools", () => {
     expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain("/bookings/uid%2F%3F/cancel");
     expect(vi.mocked(fetch).mock.calls[0][1]?.body).toBe('{"cancellationReason":"Changed plans"}');
   });
+  it("includes the existing booking in rescheduling slot lookups", async () => {
+    mockResponse();
+    await run("get_available_slots", {
+      eventTypeId: 1,
+      start: "2030-01-01T00:00:00Z",
+      end: "2030-01-02T00:00:00Z",
+      bookingUidToReschedule: "uid/?",
+    });
+    expect(
+      new URL(String(vi.mocked(fetch).mock.calls[0][0])).searchParams.get("bookingUidToReschedule")
+    ).toBe("uid/?");
+  });
   it("exports JSON schemas and filters all mutations", () => {
     expect(toFunctionDefinitions()).toHaveLength(12);
     expect(toFunctionDefinitions()[0].function.parameters.type).toBe("object");

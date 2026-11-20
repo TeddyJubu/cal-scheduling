@@ -70,6 +70,9 @@ export const tools: AgentTool[] = [
       start: utc,
       end: utc,
       timeZone: timeZone.optional(),
+      bookingUidToReschedule: bookingUid
+        .optional()
+        .describe("Existing booking UID when rescheduling, to include slots overlapping that booking"),
     }),
     (query, c) => {
       if (!query.eventTypeId && !(query.eventTypeSlug && query.username))
