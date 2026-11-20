@@ -75,7 +75,7 @@ export class CommunityEventRepository {
   findRsvp(eventId: number, email: string) {
     return this.prismaClient.communityEventRsvp.findUnique({
       where: { eventId_email: { eventId, email } },
-      select: { uid: true },
+      select: { uid: true, plusOnes: true },
     });
   }
   listRsvps(eventId: number) {
