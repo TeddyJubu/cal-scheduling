@@ -182,6 +182,26 @@ describe("CommunityEventService", () => {
     expect(repository.upsertRsvp).toHaveBeenCalledWith(1, expect.objectContaining({ plusOnes: 0 }));
     expect(repository.aggregateCounts).not.toHaveBeenCalled();
   });
+  it.each([false, true])("preserves omitted guests on existing RSVPs (trusted=%s)", async (trusted) => {
+    repository.findRsvp.mockResolvedValue({ uid: rsvp.uid, plusOnes: 2 });
+    await service.rsvp(
+      "event",
+      { name: rsvp.name, email: rsvp.email, status: "GOING" },
+      { trusted, rsvpUid: rsvp.uid }
+    );
+    expect(repository.upsertRsvp).toHaveBeenCalledWith(1, expect.objectContaining({ plusOnes: 2 }));
+  });
+  it("uses retained guests for capacity checks and permits explicitly clearing them", async () => {
+    repository.findRsvp.mockResolvedValue({ uid: rsvp.uid, plusOnes: 2 });
+    repository.aggregateCounts.mockResolvedValue(groups(2, 0));
+    const input = { name: rsvp.name, email: rsvp.email, status: "GOING" as const };
+    await expect(service.rsvp("event", input, { trusted: true })).rejects.toMatchObject({
+      code: "EVENT_FULL",
+    });
+    expect(repository.upsertRsvp).not.toHaveBeenCalled();
+    await service.rsvp("event", { ...input, plusOnes: 0 }, { trusted: true });
+    expect(repository.upsertRsvp).toHaveBeenCalledWith(1, expect.objectContaining({ plusOnes: 0 }));
+  });
   it.each([
     { status: "CANCELLED" as const },
     { endTime: new Date("2000-01-01") },
@@ -246,7 +266,7 @@ describe("CommunityEventService", () => {
     expect(repository.update).toHaveBeenCalledWith("event", { coverImageUrl });
   });
   it("requires the RSVP uid for public updates and never returns stored notes", async () => {
-    repository.findRsvp.mockResolvedValue({ uid: rsvp.uid });
+    repository.findRsvp.mockResolvedValue({ uid: rsvp.uid, plusOnes: 1 });
     for (const options of [{}, { rsvpUid: "wrong" }])
       await expect(service.rsvp("event", rsvp, options)).rejects.toMatchObject({ code: "RSVP_EXISTS" });
     expect(repository.upsertRsvp).not.toHaveBeenCalled();

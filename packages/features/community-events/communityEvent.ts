@@ -30,7 +30,7 @@ export const rsvpInput = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().toLowerCase().email(),
   status: z.enum(["GOING", "MAYBE", "NOT_GOING"]),
-  plusOnes: z.number().int().min(0).max(10).default(0),
+  plusOnes: z.number().int().min(0).max(10).optional(),
   note: z.string().nullable().optional(),
 });
 export type EventInput = z.infer<typeof eventInput>;

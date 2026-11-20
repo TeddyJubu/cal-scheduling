@@ -98,7 +98,7 @@ describe("Community Events", () => {
       .auth(token, { type: "bearer" })
       .send(rsvp)
       .expect(201);
-    expect(saved.body.data).toMatchObject(rsvp);
+    expect(saved.body.data).toMatchObject({ ...rsvp, plusOnes: 0 });
     await request(server)
       .post(`${path}/rsvps`)
       .auth(token, { type: "bearer" })
@@ -129,5 +129,22 @@ describe("Community Events", () => {
       .expect(201);
     expect(cancelled.body.data.status).toBe("CANCELLED");
     await request(server).post(`${path}/rsvps`).auth(token, { type: "bearer" }).send(rsvp).expect(400);
+  });
+  it("preserves omitted guests on updates and uses them for capacity", async () => {
+    const server = app.getHttpServer();
+    const created = await request(server)
+      .post(base)
+      .auth(token, { type: "bearer" })
+      .send({ ...event, title: "Guest preservation", capacity: 3 })
+      .expect(201);
+    const path = `${base}/${created.body.data.uid}/rsvps`;
+    const save = (input: object) => request(server).post(path).auth(token, { type: "bearer" }).send(input);
+    expect((await save({ ...rsvp, plusOnes: 2 }).expect(201)).body.data.plusOnes).toBe(2);
+    expect((await save(rsvp).expect(201)).body.data.plusOnes).toBe(2);
+    await save({ ...rsvp, email: "second@example.com" }).expect(409);
+    expect((await save({ ...rsvp, status: "MAYBE" }).expect(201)).body.data.plusOnes).toBe(2);
+    expect((await save({ ...rsvp, email: "second@example.com" }).expect(201)).body.data.plusOnes).toBe(0);
+    await save(rsvp).expect(409);
+    expect((await save({ ...rsvp, plusOnes: 0 }).expect(201)).body.data.plusOnes).toBe(0);
   });
 });
