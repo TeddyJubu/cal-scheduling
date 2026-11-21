@@ -262,6 +262,70 @@ describe("tools", () => {
   });
 });
 
+describe("MCP omitted arguments", () => {
+  it.each([
+    false,
+    true,
+  ])("accepts omitted arguments for optional-input tools (multi-account=%s)", async (multiple) => {
+    const accounts = multiple
+      ? new CalAccounts({
+          accounts: {
+            first: { apiKey: "first-key", apiUrl: "https://first.example" },
+            second: { apiKey: "second-key", apiUrl: "https://second.example" },
+          },
+          defaultAccount: "second",
+        })
+      : undefined;
+    const server = createMcpServer(accounts ?? client);
+    const peer = new Client({ name: "test", version: "1" });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await server.connect(a);
+    await peer.connect(b);
+    try {
+      const definitions = (await peer.listTools()).tools;
+      expect(
+        definitions.find((entry) => entry.name === "list_events")?.inputSchema.properties
+      ).toHaveProperty("period");
+      expect(definitions.find((entry) => entry.name === "get_event")?.inputSchema.required).toContain(
+        "eventUid"
+      );
+      if (multiple)
+        expect(
+          definitions.find((entry) => entry.name === "list_events")?.inputSchema.properties
+        ).toHaveProperty("business");
+      for (const entry of getTools({ accounts }).filter((entry) => entry.inputSchema.safeParse({}).success)) {
+        mockResponse();
+        const result = await peer.callTool({ name: entry.name });
+        expect(result.isError, entry.name).not.toBe(true);
+        expect(result.content).toEqual([
+          {
+            type: "text",
+            text: entry.name === "list_businesses" ? '["first","second"]' : '{"status":"success","data":[]}',
+          },
+        ]);
+        if (entry.name !== "list_businesses")
+          expect(vi.mocked(fetch).mock.calls[0][1]?.headers).toMatchObject({
+            Authorization: multiple ? "Bearer second-key" : "Bearer test-key",
+          });
+      }
+      mockResponse();
+      expect(await peer.callTool({ name: "get_event" })).toMatchObject({ isError: true });
+      expect(await peer.callTool({ name: "list_events", arguments: { take: -1 } })).toMatchObject({
+        isError: true,
+      });
+      expect(fetch).not.toHaveBeenCalled();
+      mockResponse({ error: "Unavailable" }, 503);
+      expect(await peer.callTool({ name: "list_events" })).toMatchObject({
+        isError: true,
+        content: [{ type: "text", text: expect.stringContaining("503") }],
+      });
+    } finally {
+      await peer.close();
+      await server.close();
+    }
+  });
+});
+
 describe("community events", () => {
   const event = {
     title: "Book club",

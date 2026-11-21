@@ -14,11 +14,15 @@ export function createMcpServer(client: CalClient | CalAccounts, options: { read
   const accounts = client instanceof CalAccounts ? client : undefined;
   const fallback = client instanceof CalAccounts ? client.client() : client;
   for (const entry of getTools({ ...options, accounts })) {
+    const inputSchema = entry.inputSchema.extend({});
+    // SDK 1.26 validates arguments before invoking handlers, including when they are omitted.
+    inputSchema.safeParseAsync = (input, params) =>
+      entry.inputSchema.safeParseAsync(input === undefined ? {} : input, params);
     server.registerTool(
       entry.name,
       {
         description: entry.description,
-        inputSchema: entry.inputSchema.shape,
+        inputSchema,
         annotations: { readOnlyHint: !entry.mutating, destructiveHint: entry.mutating },
       },
       async (input: unknown): Promise<CallToolResult> => {
