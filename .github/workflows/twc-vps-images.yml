@@ -1,0 +1,89 @@
+# Builds the images for the self-hosted deployment on the TWC VPS, which is too
+# small to build them itself. Only placeholder secrets go in: real values are
+# supplied at runtime from a root-only env file on the VPS.
+name: TWC VPS images
+
+on:
+  push:
+    branches: [deploy/twc-vps]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: twc-vps-images
+  cancel-in-progress: true
+
+env:
+  PUBLIC_URL: https://cal.thewomenscollective.club
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [web, api]
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker image prune -af
+          df -h /
+
+      - uses: actions/checkout@v4
+
+      # The web build connects to a database, as in the upstream release workflow.
+      # This one is empty and is thrown away with the runner.
+      - name: Start throwaway database
+        run: |
+          docker run -d --name database \
+            -e POSTGRES_USER=build -e POSTGRES_PASSWORD=build -e POSTGRES_DB=build \
+            postgres:17-alpine
+          until docker exec database pg_isready -U build; do sleep 1; done
+
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=container:database
+
+      - name: Build web image
+        if: matrix.image == 'web'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          tags: cal-web:${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/image.tar
+          build-args: |
+            NEXT_PUBLIC_WEBAPP_URL=${{ env.PUBLIC_URL }}
+            NEXT_PUBLIC_API_V2_URL=${{ env.PUBLIC_URL }}/api/v2
+            CALCOM_TELEMETRY_DISABLED=1
+            DATABASE_URL=postgresql://build:build@localhost:5432/build
+
+      - name: Build API image
+        if: matrix.image == 'api'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/api/v2/Dockerfile
+          platforms: linux/amd64
+          tags: cal-api:${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/image.tar
+          build-args: |
+            DATABASE_URL=postgresql://build:build@localhost:5432/build
+            DATABASE_DIRECT_URL=postgresql://build:build@localhost:5432/build
+
+      - name: Compress image
+        run: |
+          ls -lh "$RUNNER_TEMP/image.tar"
+          zstd -T0 -6 --rm "$RUNNER_TEMP/image.tar" -o "$RUNNER_TEMP/cal-${{ matrix.image }}.tar.zst"
+          ls -lh "$RUNNER_TEMP/cal-${{ matrix.image }}.tar.zst"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cal-${{ matrix.image }}
+          path: ${{ runner.temp }}/cal-${{ matrix.image }}.tar.zst
+          compression-level: 0
+          retention-days: 3
